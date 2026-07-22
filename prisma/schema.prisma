@@ -1,0 +1,129 @@
+// OpsBrain — Knowledge Intelligence Platform schema
+// Companion to architecture.md Section 6
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      String   @default("Engineer") // Technician | Engineer | Compliance | Manager
+  createdAt DateTime @default(now())
+}
+
+// ─── Documents ───────────────────────────────────────────────────────────────
+model Document {
+  id           String   @id @default(cuid())
+  docId        String   @unique // human-friendly e.g. WO-4521
+  title        String
+  docType      String   // WorkOrder | InspectionReport | IncidentReport | OEMManual | SOP | Regulation | Procedure | NearMiss
+  sourceSystem String   @default("Upload")
+  facility     String   @default("Plant-A")
+  uploadedAt   DateTime @default(now())
+  rawText      String   @default("")
+  metaJson     String   @default("{}")
+  chunks       Chunk[]
+  entities    Entity[]  @relation("DocumentEntities")
+  relations    Relation[] @relation("DocRelations")
+}
+
+model Chunk {
+  id          String   @id @default(cuid())
+  documentId  String
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  index       Int
+  text        String
+  section     String   @default("body")
+  page        Int      @default(1)
+  // TF-IDF style embedding stored as JSON: {term: weight}
+  embedding    String   @default("{}")
+  // entity IDs referenced in this chunk
+  entityIds   String   @default("[]") // JSON array
+  createdAt   DateTime @default(now())
+
+  @@index([documentId])
+}
+
+// ─── Knowledge Graph ──────────────────────────────────────────────────────────
+model Entity {
+  id          String   @id @default(cuid())
+  entityId    String   @unique // e.g. EQ:P-204
+  type        String   // Equipment | Person | Procedure | RegulatoryClause | Incident | WorkOrder | NearMiss
+  name        String
+  metaJson    String   @default("{}")
+  documentId  String?
+  document    Document? @relation("DocumentEntities", fields: [documentId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  // relations where this is source
+  outRelations Relation[] @relation("SourceEntity")
+  inRelations  Relation[] @relation("TargetEntity")
+}
+
+model Relation {
+  id          String   @id @default(cuid())
+  sourceId    String
+  source      Entity   @relation("SourceEntity", fields: [sourceId], references: [id], onDelete: Cascade)
+  targetId    String
+  target      Entity   @relation("TargetEntity", fields: [targetId], references: [id], onDelete: Cascade)
+  type        String   // MENTIONED_IN | MAINTAINED_BY | FAILED_ON | RESOLVED_BY | GOVERNED_BY | APPLIES_TO | AUTHORED | PERFORMED | TARGETS | INVOLVES | REFERENCED_IN
+  metaJson    String   @default("{}")
+  documentId  String?
+  document    Document? @relation("DocRelations", fields: [documentId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  @@unique([sourceId, targetId, type])
+  @@index([sourceId])
+  @@index([targetId])
+}
+
+// ─── Compliance ───────────────────────────────────────────────────────────────
+model RegulatoryClause {
+  id          String   @id @default(cuid())
+  clauseId    String   @unique // OISD-118:4.3.2
+  standard    String   // OISD-118 | FactoryAct-1948 | DGMS
+  title       String
+  text        String
+  category    String   @default("Safety")
+  createdAt   DateTime @default(now())
+}
+
+model ComplianceGap {
+  id           String   @id @default(cuid())
+  clauseId     String   @unique
+  status       String   // Covered | Partial | Gap
+  procedureId  String?
+  evidence     String   @default("")
+  rationale    String   @default("")
+  lastChecked  DateTime @default(now())
+}
+
+// ─── Lessons Learned Feed ────────────────────────────────────────────────────
+model LessonsAlert {
+  id           String   @id @default(cuid())
+  triggerText  String
+  triggerRef   String   @default("")
+  matchedIncidentIds String @default("[]") // JSON array of Entity IDs
+  similarity   Float    @default(0)
+  rationale    String
+  acknowledged Boolean  @default(false)
+  createdAt    DateTime @default(now())
+}
+
+// ─── Query / Answer Audit Log ────────────────────────────────────────────────
+model QueryLog {
+  id          String   @id @default(cuid())
+  query       String
+  answer      String
+  citations   String   @default("[]") // JSON array
+  confidence  Float    @default(0)
+  agentType   String   @default("Copilot") // Copilot | LessonsLearned | ComplianceGap
+  createdAt   DateTime @default(now())
+}
