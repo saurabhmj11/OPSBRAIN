@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,8 +40,7 @@ export function LessonsPanel({ openSource }: { openSource: (docId: string) => vo
   const [alerts, setAlerts] = useState<LessonsAlert[]>([]);
   const [loadingAlerts, setLoadingAlerts] = useState(true);
 
-  const loadAlerts = useCallback(async () => {
-    setLoadingAlerts(true);
+  const loadAlerts = async () => {
     try {
       const r = await fetch("/api/lessons");
       const j = await r.json();
@@ -51,11 +50,17 @@ export function LessonsPanel({ openSource }: { openSource: (docId: string) => vo
     } finally {
       setLoadingAlerts(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
-    loadAlerts();
-  }, [loadAlerts]);
+    let cancelled = false;
+    fetch("/api/lessons")
+      .then((r) => r.json())
+      .then((j) => { if (!cancelled) setAlerts(j.alerts ?? []); })
+      .catch((e) => console.error(e))
+      .finally(() => { if (!cancelled) setLoadingAlerts(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   const analyze = async (text?: string, ref?: string) => {
     const t = (text ?? trigger).trim();
@@ -121,7 +126,7 @@ export function LessonsPanel({ openSource }: { openSource: (docId: string) => vo
                 value={trigger}
                 onChange={(e) => setTrigger(e.target.value)}
                 placeholder="e.g., Compressor C-302 tripped on high vibration. Anti-surge controller in manual mode. Vibration reading 9.2 mm/s RMS."
-                className="bg-background min-h-[100px] text-sm leading-relaxed"
+                className="bg-background min-h-25 text-sm leading-relaxed"
               />
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">

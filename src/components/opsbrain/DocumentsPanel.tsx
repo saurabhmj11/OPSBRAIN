@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,22 +15,15 @@ export function DocumentsPanel({ openSource }: { openSource: (docId: string) => 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const r = await fetch("/api/documents");
-      const j = await r.json();
-      setDocs(j.documents ?? []);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    load();
-  }, [load]);
+    let cancelled = false;
+    fetch("/api/documents")
+      .then((r) => r.json())
+      .then((j) => { if (!cancelled) setDocs(j.documents ?? []); })
+      .catch((e) => console.error(e))
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   const types = Array.from(new Set(docs.map((d) => d.docType)));
   const filtered = docs.filter((d) => {
@@ -69,7 +62,7 @@ export function DocumentsPanel({ openSource }: { openSource: (docId: string) => 
             </div>
           </div>
 
-          <div className="relative min-w-[240px] flex-1 md:flex-initial">
+          <div className="relative min-w-60 flex-1 md:flex-initial">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
             <Input
               value={search}

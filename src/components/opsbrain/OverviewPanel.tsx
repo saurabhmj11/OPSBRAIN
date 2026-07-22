@@ -23,7 +23,7 @@ export function OverviewPanel({
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8">
       {/* Hero Header Banner */}
-      <div className="relative rounded-2xl bg-gradient-to-r from-sidebar-accent/80 via-sidebar to-sidebar border border-sidebar-border p-6 md:p-8 overflow-hidden text-sidebar-foreground shadow-lg">
+      <div className="relative rounded-2xl bg-linear-to-r from-sidebar-accent/80 via-sidebar to-sidebar border border-sidebar-border p-6 md:p-8 overflow-hidden text-sidebar-foreground shadow-lg">
         {/* Background glow */}
         <div className="absolute top-0 right-0 w-96 h-96 bg-brand/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-1/3 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -260,7 +260,7 @@ export function OverviewPanel({
       </div>
 
       {/* Architectural Philosophy Card */}
-      <Card className="border bg-gradient-to-br from-card to-muted/30">
+      <Card className="border bg-linear-to-br from-card to-muted/30">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm md:text-base flex items-center gap-2">
             <Quote className="size-4 text-brand" />
@@ -304,7 +304,7 @@ function StatTile({
   }[color];
 
   return (
-    <Card className="hover:translate-y-[-2px] transition-all hover:shadow-md border bg-card/80 backdrop-blur">
+    <Card className="hover:-translate-y-0.5 transition-all hover:shadow-md border bg-card/80 backdrop-blur">
       <CardContent className="pt-4 pb-4">
         <div className="flex items-center justify-between mb-2">
           <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">

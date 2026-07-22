@@ -178,7 +178,7 @@ export function CopilotPanel({ openSource }: { openSource: (docId: string) => vo
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask about pump failures, OEM manual specs, SOP compliance, or inspection history…"
-              className="resize-none min-h-[56px] max-h-[160px] bg-background border-border text-sm leading-relaxed"
+              className="resize-none min-h-14 max-h-40 bg-background border-border text-sm leading-relaxed"
               rows={2}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
@@ -192,7 +192,7 @@ export function CopilotPanel({ openSource }: { openSource: (docId: string) => vo
               onClick={() => send()}
               disabled={!input.trim() || sending}
               size="icon"
-              className="size-[56px] bg-brand hover:bg-brand/90 text-brand-foreground shrink-0 shadow-md transition-all"
+              className="size-14 bg-brand hover:bg-brand/90 text-brand-foreground shrink-0 shadow-md transition-all"
             >
               {sending ? <Loader2 className="size-5 animate-spin" /> : <Send className="size-5" />}
             </Button>
@@ -420,7 +420,9 @@ function CitationList({
             <span className="font-mono opacity-70 font-bold">[C{c.index}]</span>
             <span>{c.docId}</span>
             {c.graphExpanded && (
-              <Network className="size-3 text-amber-600 dark:text-amber-400" title="Graph Expanded Link" />
+              <span aria-label="Graph Expanded Link">
+                <Network className="size-3 text-amber-600 dark:text-amber-400" />
+              </span>
             )}
           </button>
         ))}
