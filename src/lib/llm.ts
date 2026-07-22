@@ -29,7 +29,6 @@ export async function llmComplete(
         ],
         thinking: { type: "disabled" },
         temperature: opts.temperature ?? 0.2,
-        // @ts-expect-error max_tokens supported by underlying API
         max_tokens: opts.maxTokens ?? 1200,
       });
       return completion.choices[0]?.message?.content ?? "";

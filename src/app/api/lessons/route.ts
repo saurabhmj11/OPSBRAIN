@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { tokenize, buildIdfMap } from "@/lib/ingestion";
 import { llmComplete, PROMPTS } from "@/lib/llm";
+import { checkRateLimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -14,6 +15,10 @@ export const maxDuration = 120;
 type LessonsRequest = { triggerText: string; triggerRef?: string };
 
 export async function POST(req: Request) {
+  // Rate limit
+  const limited = checkRateLimit(req, "lessons");
+  if (limited) return limited;
+
   try {
     const body = (await req.json()) as LessonsRequest;
     const triggerText = (body.triggerText ?? "").trim();

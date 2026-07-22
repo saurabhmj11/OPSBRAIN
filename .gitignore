@@ -51,4 +51,13 @@ prompt
 
 server.log
 # Skills directory
-/skills/
+/skills/---
+# Database — never commit. SQLite file holds ingested documents which may be
+# sensitive in production; committing the local dev DB is also bad practice
+# because it goes stale and conflicts with schema changes.
+db/*.db
+db/*.db-journal
+
+# Local environment files
+.env
+.env.local

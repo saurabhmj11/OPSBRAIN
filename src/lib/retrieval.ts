@@ -33,6 +33,14 @@ export type RetrievalResult = {
 };
 
 // ─── Stage 1: Vector Search (TF-IDF cosine similarity) ──────────────────────
+//
+// ⚠️ DEMO-SCALE ONLY: This implementation loads every chunk into memory per
+// query (db.chunk.findMany with no scoping) and computes cosine similarity
+// in JS. At 71 chunks this is sub-millisecond; at 200k chunks it would not
+// work. Production path (per architecture.md Section 5 + 11): replace this
+// with a real ANN vector index (Pinecone / Weaviate / pgvector) and shard by
+// facility/business-unit. The graph-expansion step below already mirrors the
+// production query plan — only the vector-search primitive is swapped.
 export async function vectorSearch(query: string, topK = 20): Promise<RetrievedChunk[]> {
   const allChunks = await db.chunk.findMany({
     include: { document: true },

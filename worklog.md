@@ -35,3 +35,50 @@ Stage Summary:
 - All 5 personas from PRD Section 4 supported via responsive design (mobile-first copilot for field techs, dense desktop for engineers)
 - 7 screenshots saved to /home/z/my-project/download/ (overview, copilot-answer, source-drawer, graph, compliance, compliance-expanded, lessons)
 - Ready for live demo with unscripted judge queries
+
+---
+Task ID: 2
+Agent: main (Super Z)
+Task: Address code-review findings (security + type-check + known-limitation annotations) before demo.
+
+Work Log:
+- Ran `bunx tsc --noEmit` and fixed 5 type errors in my code:
+  * `src/app/api/seed/route.ts:25` — `const results = []` inferred `never[]`; added explicit union type
+  * `src/app/api/compliance/route.ts:26` — same issue; introduced `GapResult` type alias
+  * `src/components/opsbrain/CopilotPanel.tsx:312` — `/s` regex flag requires es2018+; replaced with `[\s\S]` workaround for ES2017 target
+  * `src/lib/llm.ts:32` — removed unused `@ts-expect-error` directive (SDK now accepts `max_tokens`)
+  * Pre-existing errors in `examples/` and `skills/` (scaffold demos) left alone
+- Untracked `db/custom.db` and `.env` from git (`git rm --cached`)
+- Appended proper ignore patterns to `.gitignore`: `db/*.db`, `db/*.db-journal`, `.env`, `.env.local`
+- Built `src/lib/ratelimit.ts` — in-memory per-IP+per-route sliding window limiter with:
+  * Standard `Retry-After` + `X-RateLimit-*` headers on 429 responses
+  * Auto-pruning of expired buckets to avoid memory growth
+  * Per-route config: chat=10/min, lessons=5/min, compliance=3/min, seed=3/5min
+- Wired `checkRateLimit()` into `/api/chat`, `/api/lessons`, `/api/compliance`, `/api/seed`
+- Added soft admin-token guard to `/api/seed`:
+  * Requires `DEMO_ADMIN_TOKEN` env var on server
+  * Requires `x-admin-token` header on request
+  * Returns 503 if env var not configured, 401 if header missing/wrong
+  * Added clear `hint` field in error response pointing to route comment
+- Set `DEMO_ADMIN_TOKEN=opsbrain-demo-2026` in `.env` (also exposed via `NEXT_PUBLIC_DEMO_ADMIN_TOKEN` for the frontend button — intentionally not a real secret, documented as such)
+- Updated `src/app/page.tsx` `seed()` to send `x-admin-token` header
+- Annotated `src/lib/retrieval.ts` `vectorSearch()` with explicit DEMO-SCALE-ONLY comment pointing to production path (Pinecone/Weaviate/pgvector per architecture.md Section 5+11)
+- Annotated `src/app/api/seed/route.ts` with DEMO-ONLY warning explaining the DB-wipe + LLM-call implications and the production RBAC path
+- Restarted dev server to pick up new env vars
+- Verified end-to-end:
+  * `POST /api/seed` without token → 401 with clear hint
+  * `POST /api/seed` with token → success (20 docs, 71 chunks, 121 entities, 74 relations, 6 clauses)
+  * `POST /api/chat` × 12 → first 10 succeed, 11+ return 429 with proper headers
+  * 429 response includes `Retry-After: 42`, `X-RateLimit-Limit: 10`, `X-RateLimit-Remaining: 0`
+  * Frontend "Re-seed Corpus" button still works (sends token header automatically)
+  * Copilot query "Has pump P-204 failed before?" returns cited answer with 6 source documents
+  * Lint clean, tsc clean (my code)
+
+Stage Summary:
+- All 5 reviewer findings addressed or documented
+- Type-check now genuinely passes on all my code (not just suppressed by `ignoreBuildErrors`)
+- DB file no longer tracked in git (dangerous habit broken)
+- Rate limiting prevents cost/DoS exposure on LLM-calling endpoints
+- Admin-token guard prevents accidental DB-wipe from public URL
+- All demo-only limitations explicitly annotated in code comments so they can be volunteered honestly to judges rather than discovered
+- Demo remains fully functional — verified via agent-browser after all changes

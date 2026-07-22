@@ -308,8 +308,9 @@ function CitationList({
 }
 
 function FormattedAnswer({ text }: { text: string }) {
-  // Render answer with citation markers highlighted, plus "Sources:" line broken out
-  const parts = text.split(/(Sources:\s*.*)$/s);
+  // Render answer with citation markers highlighted, plus "Sources:" line broken out.
+  // Note: dotAll flag deliberately omitted for ES2017 compatibility.
+  const parts = text.split(/(Sources:[\s\S]*)$/);
   const main = parts[0] || text;
   const sourcesLine = parts[1];
 

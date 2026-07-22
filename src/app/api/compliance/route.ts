@@ -6,12 +6,17 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { retrieve } from "@/lib/retrieval";
 import { llmComplete, PROMPTS } from "@/lib/llm";
+import { checkRateLimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
 
 // POST: run gap analysis on all clauses (or a specific clause)
 export async function POST(req: Request) {
+  // Rate limit
+  const limited = checkRateLimit(req, "compliance");
+  if (limited) return limited;
+
   try {
     const url = new URL(req.url);
     const onlyClauseId = url.searchParams.get("clauseId");
@@ -23,7 +28,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No regulatory clauses seeded. Run /api/seed first." }, { status: 400 });
     }
 
-    const results = [];
+    type GapResult = {
+      clauseId: string;
+      standard: string;
+      title: string;
+      clauseText: string;
+      status: string;
+      procedureId: string | null | undefined;
+      evidence: string;
+      rationale: string;
+    };
+    const results: GapResult[] = [];
     for (const clause of clauses) {
       // Skip if already analyzed unless regenerate
       const existing = await db.complianceGap.findUnique({ where: { clauseId: clause.clauseId } });

@@ -1,15 +1,54 @@
 // Seed the corpus + regulatory clauses into the database.
 // Also rebuilds the global IDF map for retrieval.
+//
+// ⚠️ DEMO-ONLY: This endpoint wipes the entire database (deleteMany on every
+// table) before reseeding. In production this MUST be gated behind admin auth
+// (RBAC + 2FA) — exposed as-is for the hackathon demo so it can be re-triggered
+// live by judges. See PRD FR-7 and rules.md Section 4 (auditability).
+//
+// Soft guard: requires DEMO_ADMIN_TOKEN env var to be set on the server, and
+// the request to carry it as `x-admin-token` header. Empty/missing token =
+// endpoint disabled. This prevents accidental triggering from the public URL
+// while still allowing the demo operator to seed/reseed at will.
 
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { CORPUS } from "@/lib/corpus";
 import { ingestDocument, rebuildGlobalIdf } from "@/lib/ingestion";
+import { checkRateLimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-export async function POST() {
+function unauthorized(message: string, status = 401) {
+  return NextResponse.json(
+    {
+      error: message,
+      hint:
+        "Seed endpoint requires DEMO_ADMIN_TOKEN env var on the server and `x-admin-token` header on the request. This is a deliberate guard — see route comment.",
+    },
+    { status }
+  );
+}
+
+export async function POST(req: Request) {
+  // Rate limit — very strict because seeding wipes the DB and makes ~80 LLM calls
+  const limited = checkRateLimit(req, "seed");
+  if (limited) return limited;
+
+  // Soft admin-token guard (rules.md: design-time RBAC; demo stub per architecture.md 3.4)
+  const expectedToken = process.env.DEMO_ADMIN_TOKEN;
+  if (!expectedToken) {
+    return unauthorized(
+      "Seed endpoint disabled: DEMO_ADMIN_TOKEN env var not configured.",
+      503
+    );
+  }
+  const providedToken = req.headers.get("x-admin-token");
+  if (providedToken !== expectedToken) {
+    return unauthorized("Invalid or missing x-admin-token header.");
+  }
+
   const startedAt = Date.now();
   try {
     // Wipe existing data — full reseed for idempotency
@@ -22,7 +61,10 @@ export async function POST() {
     await db.lessonsAlert.deleteMany();
     await db.queryLog.deleteMany();
 
-    const results = [];
+    const results: Array<
+      { docId: string; documentId: string; chunkCount: number; entityCount: number } |
+      { docId: string; error: string }
+    > = [];
     for (const doc of CORPUS) {
       try {
         const result = await ingestDocument(doc);

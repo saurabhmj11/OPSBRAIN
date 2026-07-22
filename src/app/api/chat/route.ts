@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { retrieve } from "@/lib/retrieval";
 import { llmComplete, PROMPTS } from "@/lib/llm";
+import { checkRateLimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -12,6 +13,10 @@ export const maxDuration = 120;
 type ChatRequest = { query: string; history?: { role: string; content: string }[] };
 
 export async function POST(req: Request) {
+  // Rate limit (rules.md: every external API call wrapped with graceful degradation)
+  const limited = checkRateLimit(req, "chat");
+  if (limited) return limited;
+
   try {
     const body = (await req.json()) as ChatRequest;
     const query = (body.query ?? "").trim();

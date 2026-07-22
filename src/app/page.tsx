@@ -47,7 +47,17 @@ export default function Home() {
     setSeeding(true);
     const t = toast.loading("Seeding corpus — ingesting 18 industrial documents, extracting entities, building knowledge graph...");
     try {
-      const r = await fetch("/api/seed", { method: "POST" });
+      // DEMO_ADMIN_TOKEN is intentionally exposed via NEXT_PUBLIC_ so the
+      // demo operator (and judges) can re-trigger seeding from the UI. This is
+      // NOT a security boundary — see /api/seed route comment.
+      const adminToken = process.env.NEXT_PUBLIC_DEMO_ADMIN_TOKEN ?? "";
+      const r = await fetch("/api/seed", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-token": adminToken,
+        },
+      });
       const j = await r.json();
       if (j.success) {
         toast.success(`Corpus seeded in ${(j.elapsedMs / 1000).toFixed(1)}s — ${j.documentsIngested} docs, ${j.clausesSeeded} regulatory clauses`, { id: t });
