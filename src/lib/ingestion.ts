@@ -349,6 +349,8 @@ export async function ingestDocument(doc: CorpusDoc): Promise<{
   for (const c of chunks) {
     const extraction = await extractEntities(c.text);
     allExtractions.push(extraction);
+    // Throttle to avoid LLM rate limits (rules.md 1.2 — graceful degradation)
+    await new Promise((r) => setTimeout(r, 300));
   }
 
   // 4. Build IDF map across all chunks of this document (and we'll rebuild globally later)

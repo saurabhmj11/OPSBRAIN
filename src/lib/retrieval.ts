@@ -43,6 +43,23 @@ export async function vectorSearch(query: string, topK = 20): Promise<RetrievedC
   const idf = buildIdfMap(allChunks.map((c) => c.text));
   const queryVec = computeQueryVector(query, idf);
 
+  // Detect equipment tags / entity patterns in the query for entity-boost
+  const queryEntityIds = new Set<string>();
+  const entityPatterns: [RegExp, (m: string) => string][] = [
+    [/\b([PVCBT])-(\d{2,4})\b/g, (m) => `EQ:${m}`],
+    [/\bWO-(\d{3,5})\b/g, (m) => `WO:${m}`],
+    [/\bINC-(\d{4})-(\d{3})\b/g, (m) => `INC:${m}`],
+    [/\bNM-(\d{4})-(\d{3})\b/g, (m) => `NM:${m}`],
+    [/\b(SOP|PR)-([A-Z]+)-(\d{3})\b/g, (m) => `PR:${m}`],
+    [/OISD-(\d+)\s+Clause\s+(\d+\.\d+\.\d+)/gi, (m) => `REG:OISD-${m}:`],
+  ];
+  for (const [re, fn] of entityPatterns) {
+    const matches = query.matchAll(re as RegExp);
+    for (const m of matches) {
+      queryEntityIds.add(fn(m[0]));
+    }
+  }
+
   const scored = allChunks.map((c) => {
     let embedding: Record<string, number> = {};
     try {
@@ -50,7 +67,20 @@ export async function vectorSearch(query: string, topK = 20): Promise<RetrievedC
     } catch {
       embedding = {};
     }
-    const sim = cosineSim(queryVec, embedding);
+    let sim = cosineSim(queryVec, embedding);
+
+    // Entity boost: if chunk mentions an entity that appears in the query, boost similarity
+    let chunkEntityIds: string[] = [];
+    try {
+      chunkEntityIds = JSON.parse(c.entityIds || "[]");
+    } catch {
+      chunkEntityIds = [];
+    }
+    const entityOverlap = chunkEntityIds.filter((id) => queryEntityIds.has(id)).length;
+    if (entityOverlap > 0) {
+      sim += 0.15 * entityOverlap; // significant boost per matched entity
+    }
+
     return {
       chunkId: c.id,
       documentId: c.documentId,

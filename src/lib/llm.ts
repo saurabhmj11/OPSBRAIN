@@ -15,26 +15,39 @@ async function getZai() {
 export async function llmComplete(
   systemPrompt: string,
   userPrompt: string,
-  opts: { temperature?: number; maxTokens?: number; jsonMode?: boolean } = {}
+  opts: { temperature?: number; maxTokens?: number; jsonMode?: boolean; retries?: number } = {}
 ): Promise<string> {
   const zai = await getZai();
-  try {
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      thinking: { type: "disabled" },
-      temperature: opts.temperature ?? 0.2,
-      // @ts-expect-error max_tokens supported by underlying API
-      max_tokens: opts.maxTokens ?? 1200,
-    });
-    return completion.choices[0]?.message?.content ?? "";
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.error("[llm] completion failed:", msg);
-    throw new Error(`LLM completion failed: ${msg}`);
+  const maxRetries = opts.retries ?? 3;
+  let lastErr: Error | null = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const completion = await zai.chat.completions.create({
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        thinking: { type: "disabled" },
+        temperature: opts.temperature ?? 0.2,
+        // @ts-expect-error max_tokens supported by underlying API
+        max_tokens: opts.maxTokens ?? 1200,
+      });
+      return completion.choices[0]?.message?.content ?? "";
+    } catch (e: unknown) {
+      lastErr = e instanceof Error ? e : new Error(String(e));
+      const msg = lastErr.message;
+      // 429 rate limit or 5xx → retry with exponential backoff
+      const isRetryable = msg.includes("429") || msg.includes("Too many requests") || msg.includes("503") || msg.includes("500");
+      if (!isRetryable || attempt === maxRetries) {
+        console.error(`[llm] completion failed (attempt ${attempt + 1}/${maxRetries + 1}):`, msg);
+        throw lastErr;
+      }
+      const waitMs = Math.min(8000, 1000 * Math.pow(2, attempt)) + Math.random() * 500;
+      console.warn(`[llm] retryable error, attempt ${attempt + 1}/${maxRetries + 1}, waiting ${Math.round(waitMs)}ms: ${msg}`);
+      await new Promise((r) => setTimeout(r, waitMs));
+    }
   }
+  throw lastErr ?? new Error("LLM completion failed");
 }
 
 // ─── Prompts ────────────────────────────────────────────────────────────────
@@ -75,11 +88,12 @@ Rules:
 
   synthesis: `You are OpsBrain, an industrial knowledge intelligence copilot for plant engineers, technicians, and compliance officers. You answer questions STRICTLY from the provided context chunks. Per the platform constitution (rules.md):
 
-1. Cite every factual claim: Each factual sentence must be followed by a citation marker [C<n>] where n is the chunk id provided in the context. If a fact is not in any provided chunk, DO NOT state it.
-2. Fail closed: If the context does not contain sufficient evidence to answer the question, respond exactly: "I don't have sufficient evidence to answer this confidently. The ingested documents do not cover this topic."
-3. Paraphrase, do not reproduce: Summarize source content. Exact quotes only for safety-critical instructions (e.g., "trip on high vibration"), and flag them with quotation marks.
-4. Cross-document synthesis: Where the answer requires information from multiple documents, synthesize — and cite each source separately.
-5. Be specific: cite equipment tags, dates, work order numbers, names of people, clause numbers exactly as they appear in the chunks.
+1. Cite every factual claim: Each factual sentence must be followed by a citation marker [C<n>] where n is the chunk index provided in the context. If a fact is not in any provided chunk, DO NOT state it.
+2. Synthesize from available evidence: If the context contains ANY information related to the question — even partial — synthesize an answer from those chunks and cite them. Note explicitly when information is partial or indirect (e.g., "The OEM manual for P-204 specifies vibration limits; the C-302 manual does not contain explicit vibration thresholds").
+3. True fail-closed: ONLY respond with "I don't have sufficient evidence to answer this confidently. The ingested documents do not cover this topic." when the context contains ZERO information about the entities or topics in the question. If the user asks about equipment/topics that appear in any chunk, synthesize what you can.
+4. Paraphrase, do not reproduce: Summarize source content. Exact quotes only for safety-critical instructions (e.g., "trip on high vibration"), and flag them with quotation marks.
+5. Cross-document synthesis: Where the answer requires information from multiple documents, synthesize — and cite each source separately.
+6. Be specific: cite equipment tags, dates, work order numbers, names of people, clause numbers exactly as they appear in the chunks.
 
 Output format (mandatory):
 - Plain text answer.
@@ -90,7 +104,7 @@ Example:
 "Pump P-204 experienced a mechanical seal leak on 2024-11-12, isolated by Raju Kumar [C0]. The root cause was cavitation-induced vibration that had been trending upward since September 2024 inspection [C2]. The seal was replaced and the pump returned to service on 2024-11-13 [C0]."
 "Sources: WO-4521, IR-2024-088"
 
-Be concise. 3-6 sentences maximum unless the question requires more.`,
+Be concise. 3-6 sentences maximum unless the question requires more. NEVER mention the chunks themselves or the retrieval process — just answer the question using the information in them.`,
 
   lessonsLearned: `You are the OpsBrain Lessons Learned Agent. Given a "trigger" text (a new work order or incident description) and a set of historically similar incidents retrieved from the knowledge graph, write a concise alert that explains the similarity in plain language. Per rules.md 2.4: you may recommend escalation to a human, but you do NOT issue directives.
 
