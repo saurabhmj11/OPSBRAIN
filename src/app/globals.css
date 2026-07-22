@@ -128,25 +128,55 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
     font-feature-settings: "ss01", "ss02", "cv11";
+  }
+  /* Industrial subtle background pattern */
+  .bg-industrial-grid {
+    background-size: 24px 24px;
+    background-image: 
+      radial-gradient(circle, var(--border) 1px, transparent 1px);
   }
   /* Custom scrollbar for long lists */
   .scroll-area::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
   }
   .scroll-area::-webkit-scrollbar-track {
     background: transparent;
   }
   .scroll-area::-webkit-scrollbar-thumb {
     background: var(--muted-foreground);
-    opacity: 0.3;
-    border-radius: 3px;
+    opacity: 0.25;
+    border-radius: 4px;
   }
   .scroll-area::-webkit-scrollbar-thumb:hover {
     background: var(--primary);
   }
+}
+
+/* Glassmorphism & Card Glows */
+.glass-card {
+  background: var(--card);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+}
+
+.dark .glass-card {
+  box-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.3);
+}
+
+.glow-brand {
+  box-shadow: 0 0 20px -5px oklch(0.55 0.16 38 / 0.3);
+}
+
+.glow-emerald {
+  box-shadow: 0 0 20px -5px oklch(0.55 0.13 152 / 0.3);
+}
+
+.glow-orange {
+  box-shadow: 0 0 20px -5px oklch(0.60 0.22 12 / 0.3);
 }
 
 /* Citation chip animation */
@@ -161,17 +191,25 @@
 
 /* Smooth graph transitions */
 .graph-node {
-  transition: r 0.15s, fill 0.15s, stroke 0.15s;
+  transition: r 0.15s, fill 0.15s, stroke 0.15s, filter 0.15s;
 }
 .graph-node:hover {
-  filter: brightness(1.15);
+  filter: drop-shadow(0 0 6px currentColor) brightness(1.2);
 }
 
 /* Pulsing alert */
 @keyframes alert-pulse {
   0%, 100% { box-shadow: 0 0 0 0 oklch(0.60 0.22 12 / 0.4); }
-  50% { box-shadow: 0 0 0 6px oklch(0.60 0.22 12 / 0); }
+  50% { box-shadow: 0 0 0 8px oklch(0.60 0.22 12 / 0); }
 }
 .alert-pulse {
   animation: alert-pulse 2s ease-in-out infinite;
+}
+
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(1000%); }
+}
+.scanline {
+  animation: scanline 8s linear infinite;
 }

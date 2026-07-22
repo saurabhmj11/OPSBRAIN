@@ -5,18 +5,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Loader2, Network, Search, X } from "lucide-react";
+import { Loader2, Network, Search, X, ZoomIn, ZoomOut, RotateCcw, Filter, FileText, ArrowRight } from "lucide-react";
 import type { GraphData, GraphNode } from "./types";
 import { ENTITY_COLORS, ENTITY_LABELS } from "./types";
 
 const NODE_RADIUS: Record<string, number> = {
-  Equipment: 12,
-  Incident: 10,
-  NearMiss: 9,
-  WorkOrder: 9,
-  Procedure: 10,
-  RegulatoryClause: 10,
-  Person: 9,
+  Equipment: 14,
+  Incident: 12,
+  NearMiss: 10,
+  WorkOrder: 10,
+  Procedure: 11,
+  RegulatoryClause: 11,
+  Person: 10,
 };
 
 export function GraphPanel({ openSource }: { openSource: (docId: string) => void }) {
@@ -25,6 +25,16 @@ export function GraphPanel({ openSource }: { openSource: (docId: string) => void
   const [selected, setSelected] = useState<GraphNode | null>(null);
   const [search, setSearch] = useState("");
   const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [selectedTypes, setSelectedTypes] = useState<Record<string, boolean>>({
+    Equipment: true,
+    Incident: true,
+    NearMiss: true,
+    WorkOrder: true,
+    Procedure: true,
+    RegulatoryClause: true,
+    Person: true,
+  });
   const svgRef = useRef<SVGSVGElement>(null);
 
   const load = useCallback(async () => {
@@ -44,22 +54,44 @@ export function GraphPanel({ openSource }: { openSource: (docId: string) => void
     load();
   }, [load]);
 
+  const toggleType = (t: string) => {
+    setSelectedTypes((prev) => ({ ...prev, [t]: !prev[t] }));
+  };
+
+  // Filter nodes based on type toggles
+  const filteredData = data
+    ? {
+        ...data,
+        nodes: data.nodes.filter((n) => selectedTypes[n.type] !== false),
+      }
+    : null;
+
   return (
-    <div className="flex flex-col h-screen">
-      {/* Header */}
-      <div className="px-4 md:px-8 py-4 border-b bg-card/50 backdrop-blur-sm flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <Network className="size-5 text-brand" />
+    <div className="flex flex-col h-screen bg-background">
+      {/* Top Header */}
+      <div className="px-4 md:px-8 py-3.5 border-b bg-card/70 backdrop-blur-md flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div className="size-9 rounded-xl bg-amber-500/15 text-amber-500 flex items-center justify-center border border-amber-500/25 shadow-inner">
+            <Network className="size-5" />
+          </div>
           <div>
-            <h1 className="font-semibold text-base">Knowledge Graph</h1>
+            <h1 className="font-bold text-base tracking-tight flex items-center gap-2">
+              Entity Knowledge Graph
+              {data && (
+                <Badge variant="outline" className="text-[10px] font-mono bg-amber-500/10 text-amber-600 border-amber-500/30">
+                  {data.nodes.length} Nodes · {data.edges.length} Edges
+                </Badge>
+              )}
+            </h1>
             <p className="text-xs text-muted-foreground">
-              Entities + relations extracted across all documents · click a node to explore
+              Cross-document entity linkages extracted across 18 industrial documents
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
             <Input
               value={search}
               onChange={(e) => {
@@ -69,68 +101,114 @@ export function GraphPanel({ openSource }: { openSource: (docId: string) => void
                 );
                 setFocusedId(match?.id ?? null);
               }}
-              placeholder="Find entity (e.g. P-204)…"
-              className="pl-7 h-8 text-xs w-44 md:w-56"
+              placeholder="Find entity (e.g. P-204, C-302)…"
+              className="pl-8 h-8 text-xs w-44 md:w-56 bg-background"
             />
           </div>
-          <Button size="sm" variant="outline" onClick={load} disabled={loading}>
-            {loading ? <Loader2 className="size-3.5 animate-spin" /> : "Refresh"}
+          <Button size="sm" variant="outline" onClick={load} disabled={loading} className="h-8 text-xs">
+            {loading ? <Loader2 className="size-3.5 animate-spin" /> : "Refresh Graph"}
           </Button>
         </div>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* Graph canvas */}
-        <div className="flex-1 relative overflow-hidden bg-gradient-to-br from-background to-muted/30">
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Main Canvas Area */}
+        <div className="flex-1 relative overflow-hidden bg-industrial-grid">
           {loading ? (
             <div className="absolute inset-0 flex items-center justify-center">
-              <Loader2 className="size-6 animate-spin text-brand" />
+              <Loader2 className="size-7 animate-spin text-brand" />
             </div>
-          ) : !data || data.nodes.length === 0 ? (
+          ) : !filteredData || filteredData.nodes.length === 0 ? (
             <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-              No graph data. Initialize the corpus first.
+              No nodes to display. Initialize the corpus or reset entity filters.
             </div>
           ) : (
             <ForceGraph
-              data={data}
+              data={filteredData}
               focusedId={focusedId}
+              zoomLevel={zoomLevel}
               onSelect={setSelected}
               svgRef={svgRef}
             />
           )}
 
-          {/* Legend */}
-          <div className="absolute bottom-3 left-3 bg-card/90 backdrop-blur border rounded-md p-2.5 text-[10.5px]">
-            <div className="font-medium mb-1.5 text-muted-foreground uppercase tracking-wide">
-              Entity types
+          {/* Controls Overlay Bar */}
+          <div className="absolute top-3 left-3 bg-card/90 backdrop-blur-md border rounded-xl p-1.5 flex items-center gap-1 shadow-md">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              onClick={() => setZoomLevel((z) => Math.min(z + 0.2, 2.5))}
+              title="Zoom In"
+            >
+              <ZoomIn className="size-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              onClick={() => setZoomLevel((z) => Math.max(z - 0.2, 0.5))}
+              title="Zoom Out"
+            >
+              <ZoomOut className="size-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              onClick={() => {
+                setZoomLevel(1);
+                setFocusedId(null);
+              }}
+              title="Reset View"
+            >
+              <RotateCcw className="size-3.5" />
+            </Button>
+          </div>
+
+          {/* Interactive Entity Filters Panel */}
+          <div className="absolute bottom-3 left-3 bg-card/90 backdrop-blur-md border rounded-xl p-3 text-[11px] max-w-xs shadow-lg">
+            <div className="font-semibold mb-2 text-muted-foreground uppercase tracking-wider flex items-center justify-between text-[10px]">
+              <span className="flex items-center gap-1">
+                <Filter className="size-3" /> Entity Filter & Legend
+              </span>
+              <span className="font-mono">{filteredData?.nodes.length} Visible</span>
             </div>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+            <div className="grid grid-cols-2 gap-1.5">
               {Object.entries(ENTITY_COLORS).map(([type, color]) => (
-                <div key={type} className="flex items-center gap-1.5">
+                <button
+                  key={type}
+                  onClick={() => toggleType(type)}
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded-md border transition-all text-[10.5px] ${
+                    selectedTypes[type] !== false
+                      ? "bg-muted/60 text-foreground border-border font-medium"
+                      : "bg-transparent text-muted-foreground opacity-40 border-transparent"
+                  }`}
+                >
                   <span
-                    className="size-2.5 rounded-full"
+                    className="size-2.5 rounded-full shrink-0"
                     style={{ background: color }}
                   />
-                  <span>{ENTITY_LABELS[type] ?? type}</span>
-                </div>
+                  <span className="truncate">{ENTITY_LABELS[type] ?? type}</span>
+                </button>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Side drawer */}
+        {/* Node Details Inspector Sidebar */}
         {selected && (
-          <div className="w-full md:w-80 border-l bg-card overflow-y-auto scroll-area">
-            <div className="px-4 py-3 border-b flex items-center justify-between sticky top-0 bg-card">
+          <div className="w-full md:w-80 border-l bg-card/95 backdrop-blur-md overflow-y-auto scroll-area shadow-2xl z-20">
+            <div className="px-4 py-3.5 border-b flex items-center justify-between sticky top-0 bg-card z-10 shadow-sm">
               <div className="flex items-center gap-2">
                 <span
-                  className="size-3 rounded-full"
+                  className="size-3.5 rounded-full shadow-sm"
                   style={{ background: ENTITY_COLORS[selected.type] ?? "#888" }}
                 />
-                <span className="text-sm font-semibold">{selected.name}</span>
+                <span className="text-sm font-bold truncate">{selected.name}</span>
               </div>
               <Button size="icon" variant="ghost" className="size-7" onClick={() => setSelected(null)}>
-                <X className="size-3.5" />
+                <X className="size-4" />
               </Button>
             </div>
             <NodeDetails node={selected} data={data} openSource={openSource} />
@@ -141,15 +219,17 @@ export function GraphPanel({ openSource }: { openSource: (docId: string) => void
   );
 }
 
-// ─── Force-directed graph (simple simulation, no external lib) ──────────────
+// ─── Interactive Force-Directed Graph Engine ──────────────
 function ForceGraph({
   data,
   focusedId,
+  zoomLevel,
   onSelect,
   svgRef,
 }: {
   data: GraphData;
   focusedId: string | null;
+  zoomLevel: number;
   onSelect: (n: GraphNode) => void;
   svgRef: React.RefObject<SVGSVGElement | null>;
 }) {
@@ -159,7 +239,6 @@ function ForceGraph({
     Map<string, { x: number; y: number; vx: number; vy: number }>
   >(new Map());
 
-  // Track container size
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -171,18 +250,17 @@ function ForceGraph({
     return () => ro.disconnect();
   }, []);
 
-  // Initialize node positions in a circle
   useEffect(() => {
     if (!data || data.nodes.length === 0) return;
     const map = new Map<string, { x: number; y: number; vx: number; vy: number }>();
     const cx = size.w / 2;
     const cy = size.h / 2;
-    const r = Math.min(size.w, size.h) / 3;
+    const r = Math.min(size.w, size.h) / 3.2;
     data.nodes.forEach((n, i) => {
       const angle = (i / data.nodes.length) * Math.PI * 2;
       map.set(n.id, {
-        x: cx + r * Math.cos(angle) + (Math.random() - 0.5) * 30,
-        y: cy + r * Math.sin(angle) + (Math.random() - 0.5) * 30,
+        x: cx + r * Math.cos(angle) + (Math.random() - 0.5) * 40,
+        y: cy + r * Math.sin(angle) + (Math.random() - 0.5) * 40,
         vx: 0,
         vy: 0,
       });
@@ -190,25 +268,23 @@ function ForceGraph({
     setPositions(map);
   }, [data, size.w, size.h]);
 
-  // Simulation loop
   useEffect(() => {
     if (positions.size === 0) return;
     let raf = 0;
     let iter = 0;
-    const maxIter = 250;
+    const maxIter = 280;
 
     const tick = () => {
       setPositions((prev) => {
         const next = new Map(prev);
         const cx = size.w / 2;
         const cy = size.h / 2;
-        const k = 0.06; // centering force
-        const repulsion = 4500; // node-node repulsion
-        const springK = 0.025; // edge spring
-        const springLen = 90; // target edge length
-        const damping = 0.78;
+        const k = 0.05;
+        const repulsion = 5200;
+        const springK = 0.03;
+        const springLen = 100;
+        const damping = 0.76;
 
-        // Repulsion between all pairs
         const ids = Array.from(next.keys());
         for (let i = 0; i < ids.length; i++) {
           for (let j = i + 1; j < ids.length; j++) {
@@ -227,7 +303,6 @@ function ForceGraph({
           }
         }
 
-        // Spring forces along edges
         for (const e of data.edges) {
           const a = next.get(e.source);
           const b = next.get(e.target);
@@ -244,7 +319,6 @@ function ForceGraph({
           b.vy -= fy;
         }
 
-        // Centering + integrate
         for (const [, p] of next) {
           p.vx += (cx - p.x) * k * 0.1;
           p.vy += (cy - p.y) * k * 0.1;
@@ -252,9 +326,8 @@ function ForceGraph({
           p.vy *= damping;
           p.x += p.vx;
           p.y += p.vy;
-          // Bounds
-          p.x = Math.max(30, Math.min(size.w - 30, p.x));
-          p.y = Math.max(30, Math.min(size.h - 30, p.y));
+          p.x = Math.max(40, Math.min(size.w - 40, p.x));
+          p.y = Math.max(40, Math.min(size.h - 40, p.y));
         }
         return next;
       });
@@ -274,9 +347,10 @@ function ForceGraph({
         ref={svgRef}
         width={size.w}
         height={size.h}
-        className="absolute inset-0"
+        className="absolute inset-0 transition-transform duration-300"
+        style={{ transform: `scale(${zoomLevel})`, transformOrigin: "center center" }}
       >
-        {/* Edges */}
+        {/* Edge Lines */}
         {data.edges.map((e, i) => {
           const a = positions.get(e.source);
           const b = positions.get(e.target);
@@ -289,41 +363,53 @@ function ForceGraph({
               x2={b.x}
               y2={b.y}
               stroke="currentColor"
-              strokeOpacity={0.2}
-              strokeWidth={1}
-              className="text-foreground"
+              strokeOpacity={0.25}
+              strokeWidth={1.5}
+              className="text-foreground transition-all"
             />
           );
         })}
+
         {/* Nodes */}
         {data.nodes.map((n) => {
           const p = positions.get(n.id);
           if (!p) return null;
-          const r = NODE_RADIUS[n.type] ?? 8;
+          const r = NODE_RADIUS[n.type] ?? 10;
           const color = ENTITY_COLORS[n.type] ?? "#888";
           const isFocused = focusedId === n.id;
+
           return (
             <g
               key={n.id}
               transform={`translate(${p.x},${p.y})`}
-              className="cursor-pointer"
+              className="cursor-pointer group"
               onClick={() => onSelect(n)}
             >
+              {/* Pulse glow if focused */}
+              {isFocused && (
+                <circle
+                  r={r + 8}
+                  fill={color}
+                  fillOpacity={0.3}
+                  className="animate-ping"
+                />
+              )}
+
               <circle
                 r={r + (isFocused ? 4 : 0)}
                 fill={color}
-                fillOpacity={0.85}
-                stroke={isFocused ? "#fff" : "rgba(0,0,0,0.2)"}
-                strokeWidth={isFocused ? 2 : 1}
-                className="graph-node"
+                fillOpacity={0.9}
+                stroke={isFocused ? "#ffffff" : "rgba(0,0,0,0.3)"}
+                strokeWidth={isFocused ? 2.5 : 1}
+                className="graph-node shadow-md"
               />
               <text
-                y={r + 12}
+                y={r + 14}
                 textAnchor="middle"
-                fontSize={9.5}
-                className="pointer-events-none fill-foreground font-medium"
+                fontSize={10}
+                className="pointer-events-none fill-foreground font-semibold tracking-tight shadow-sm"
               >
-                {n.label.length > 18 ? n.label.slice(0, 17) + "…" : n.label}
+                {n.label.length > 20 ? n.label.slice(0, 19) + "…" : n.label}
               </text>
             </g>
           );
@@ -342,7 +428,6 @@ function NodeDetails({
   data: GraphData | null;
   openSource: (docId: string) => void;
 }) {
-  // Find connected nodes
   const connected: { edge: string; other: GraphNode }[] = [];
   if (data) {
     for (const e of data.edges) {
@@ -356,40 +441,48 @@ function NodeDetails({
     }
   }
 
-  // Extract docId from entity name (if any)
-  const docId = node.documentId;
-  // Try to find associated document by entity name patterns
   const impliedDocId = (() => {
+    if (node.documentId) return node.documentId;
     const m = node.name.match(/(WO-\d+|INC-\d{4}-\d{3}|NM-\d{4}-\d{3}|SOP-[A-Z]+-\d{3}|PR-[A-Z]+-\d{3}|OM-[A-Z\d]+-Rev\d+)/);
     return m?.[1];
   })();
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 space-y-5 text-xs">
       <div>
-        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Type</div>
-        <Badge variant="outline" className="text-[10px]">
+        <div className="text-[10px] uppercase font-semibold tracking-wider text-muted-foreground mb-1">
+          Entity Type
+        </div>
+        <Badge variant="outline" className="text-[11px] font-semibold bg-muted">
           {ENTITY_LABELS[node.type] ?? node.type}
         </Badge>
       </div>
+
       <div>
-        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Entity ID</div>
-        <code className="text-[10.5px] bg-muted px-1.5 py-0.5 rounded">{node.id}</code>
-      </div>
-      <div>
-        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
-          Connections ({connected.length})
+        <div className="text-[10px] uppercase font-semibold tracking-wider text-muted-foreground mb-1">
+          System Identifier
         </div>
+        <code className="text-[11px] bg-muted px-2 py-1 rounded font-mono block border">
+          {node.id}
+        </code>
+      </div>
+
+      <div>
+        <div className="text-[10px] uppercase font-semibold tracking-wider text-muted-foreground mb-1.5 flex items-center justify-between">
+          <span>Connected Relations</span>
+          <span className="font-mono text-brand font-bold">{connected.length} Links</span>
+        </div>
+
         {connected.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No relations in the graph.</p>
+          <p className="text-xs text-muted-foreground">No explicit relations mapped.</p>
         ) : (
           <ul className="space-y-1.5 max-h-72 overflow-y-auto scroll-area">
             {connected.map((c, i) => (
               <li
                 key={i}
-                className="text-xs flex items-center gap-1.5 bg-muted/40 rounded px-2 py-1.5"
+                className="flex items-center gap-2 bg-muted/40 rounded-lg px-2.5 py-2 border text-[11.5px]"
               >
-                <span className="text-[9px] uppercase font-mono text-muted-foreground">
+                <span className="text-[9.5px] uppercase font-mono text-brand font-bold">
                   {c.edge}
                 </span>
                 <span className="text-muted-foreground">→</span>
@@ -397,24 +490,28 @@ function NodeDetails({
                   className="size-2 rounded-full shrink-0"
                   style={{ background: ENTITY_COLORS[c.other.type] ?? "#888" }}
                 />
-                <span className="font-medium truncate">{c.other.name}</span>
+                <span className="font-semibold truncate flex-1">{c.other.name}</span>
               </li>
             ))}
           </ul>
         )}
       </div>
-      {(docId || impliedDocId) && (
-        <div>
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
-            Source
+
+      {impliedDocId && (
+        <div className="pt-2 border-t">
+          <div className="text-[10px] uppercase font-semibold tracking-wider text-muted-foreground mb-2">
+            Primary Document Source
           </div>
           <Button
             size="sm"
             variant="outline"
-            className="w-full text-xs"
-            onClick={() => openSource(impliedDocId ?? "")}
+            className="w-full text-xs font-semibold justify-between group"
+            onClick={() => openSource(impliedDocId)}
           >
-            Open {impliedDocId}
+            <span className="flex items-center gap-1.5">
+              <FileText className="size-3.5 text-brand" /> View {impliedDocId}
+            </span>
+            <ArrowRight className="size-3 transition-transform group-hover:translate-x-1" />
           </Button>
         </div>
       )}

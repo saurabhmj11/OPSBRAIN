@@ -27,6 +27,19 @@ export default function Home() {
   const [seeded, setSeeded] = useState(false);
   const [sourceDrawerDocId, setSourceDrawerDocId] = useState<string | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [isDark, setIsDark] = useState(false);
+
+  const toggleTheme = () => {
+    setIsDark((prev) => {
+      const next = !prev;
+      if (next) {
+        document.documentElement.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+      }
+      return next;
+    });
+  };
 
   const loadStats = useCallback(async () => {
     try {
@@ -47,9 +60,6 @@ export default function Home() {
     setSeeding(true);
     const t = toast.loading("Seeding corpus — ingesting 18 industrial documents, extracting entities, building knowledge graph...");
     try {
-      // DEMO_ADMIN_TOKEN is intentionally exposed via NEXT_PUBLIC_ so the
-      // demo operator (and judges) can re-trigger seeding from the UI. This is
-      // NOT a security boundary — see /api/seed route comment.
       const adminToken = process.env.NEXT_PUBLIC_DEMO_ADMIN_TOKEN ?? "";
       const r = await fetch("/api/seed", {
         method: "POST",
@@ -77,9 +87,9 @@ export default function Home() {
   const openSource = (docId: string) => setSourceDrawerDocId(docId);
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-background">
+    <div className="min-h-screen flex flex-col md:flex-row bg-background bg-industrial-grid">
       {/* Mobile top bar */}
-      <div className="md:hidden flex items-center justify-between px-4 py-3 border-b bg-sidebar text-sidebar-foreground sticky top-0 z-30">
+      <div className="md:hidden flex items-center justify-between px-4 py-3 border-b bg-sidebar text-sidebar-foreground sticky top-0 z-30 shadow">
         <div className="flex items-center gap-2">
           <BrainIcon />
           <span className="font-semibold">OpsBrain</span>
@@ -110,10 +120,12 @@ export default function Home() {
         onSeed={seed}
         mobileOpen={mobileNavOpen}
         onCloseMobile={() => setMobileNavOpen(false)}
+        isDark={isDark}
+        onToggleTheme={toggleTheme}
       />
 
       {/* Main content */}
-      <main className="flex-1 min-w-0 flex flex-col">
+      <main className="flex-1 min-w-0 flex flex-col min-h-screen justify-between">
         <div className="flex-1 overflow-y-auto scroll-area">
           {tab === "overview" && (
             <OverviewPanel
@@ -130,6 +142,27 @@ export default function Home() {
           {tab === "lessons" && <LessonsPanel openSource={openSource} />}
           {tab === "documents" && <DocumentsPanel openSource={openSource} />}
         </div>
+
+        {/* Global Footer */}
+        <footer className="border-t bg-card/60 backdrop-blur-md px-6 py-3.5 text-center text-xs text-muted-foreground">
+          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 font-medium">
+              <span>OpsBrain Platform</span>
+              <span>·</span>
+              <span className="text-foreground">ET AI Hackathon 2026</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span>Designed &amp; Developed by</span>
+              <span className="font-bold text-foreground hover:text-brand transition-colors">
+                Saurabh Lokhande
+              </span>
+              <span>&amp; Team</span>
+              <span className="font-mono px-2 py-0.5 rounded bg-brand/10 text-brand font-bold border border-brand/20">
+                saurabhmj11
+              </span>
+            </div>
+          </div>
+        </footer>
       </main>
 
       {/* Source drawer */}
